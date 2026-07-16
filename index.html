@@ -298,7 +298,14 @@
   .time-actions{display:flex;gap:10px;justify-content:flex-end}
   .time-actions button{border:none;border-radius:12px;padding:10px 17px;font-family:inherit;font-weight:700;font-size:14px;cursor:pointer}
   /* current list label */
-  .current-list{display:inline-flex;align-items:center;gap:8px;margin:0 2px 16px;padding:8px 14px;border-radius:999px;
+  .toprow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 2px 16px}
+  .reset-chip{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border-radius:999px;cursor:pointer;
+    font-family:inherit;font-weight:600;font-size:13px;color:var(--muted);
+    background:var(--glass-2);border:1px solid var(--brd-soft);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+  .reset-chip:hover{background:rgba(255,255,255,.10);color:var(--txt)}
+  .reset-chip .rc-icon{width:15px;height:15px;color:var(--accent);flex:0 0 auto}
+  .reset-sub{font-size:13px;color:var(--muted);font-weight:600;margin:2px 0 10px}
+  .current-list{display:inline-flex;align-items:center;gap:8px;margin:0;padding:8px 14px;border-radius:999px;
     cursor:pointer;font-family:inherit;font-weight:700;font-size:14px;color:var(--txt);max-width:100%;
     background:var(--glass);border:1px solid var(--brd);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
     box-shadow:inset 0 1px 0 var(--hi)}
@@ -327,11 +334,17 @@
       <button class="iconbtn" id="themeBtn" title="Toggle theme" aria-label="Toggle background mood"></button>
     </header>
 
-    <button class="current-list" id="currentListBtn" aria-label="Current list — tap to switch">
-      <svg class="cl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-      <span class="cl-name" id="currentListName">Untitled list</span>
-      <svg class="cl-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-    </button>
+    <div class="toprow">
+      <button class="current-list" id="currentListBtn" aria-label="Current list — tap to switch">
+        <svg class="cl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        <span class="cl-name" id="currentListName">Untitled list</span>
+        <svg class="cl-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <button class="reset-chip" id="resetChip" aria-label="Auto-reset settings">
+        <svg class="rc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+        <span id="resetLabel">Resets daily</span>
+      </button>
+    </div>
 
     <section class="card progress glass" aria-label="Today's progress">
       <div class="row1">
@@ -373,7 +386,7 @@
     </button>
 
     <footer class="note">
-      Your checklist resets each morning. Everything is saved on this device only.
+      Everything is saved on this device only.
     </footer>
   </div>
 
@@ -427,12 +440,40 @@
     </div>
   </div>
 
+  <div class="overlay time-overlay" id="resetOverlay" aria-hidden="true">
+    <div class="time-box" role="dialog" aria-modal="true" aria-labelledby="resetTitle">
+      <div class="time-title" id="resetTitle">Auto-reset</div>
+      <div class="when-pills" id="resetModePills">
+        <button type="button" data-mode="off">Off</button>
+        <button type="button" data-mode="daily">Daily</button>
+      </div>
+      <div id="resetWhenWrap">
+        <div class="reset-sub">Reset at</div>
+        <div class="when-pills" id="resetPresetPills">
+          <button type="button" data-time="00:00">🌙 Midnight</button>
+          <button type="button" data-time="06:00">🌅 6 AM</button>
+          <button type="button" data-time="12:00">☀️ Noon</button>
+          <button type="button" data-time="18:00">🌆 6 PM</button>
+          <button type="button" data-time="21:00">🌙 9 PM</button>
+        </div>
+        <div class="time-specific">
+          <label for="resetTimeInput">Specific time</label>
+          <input type="time" id="resetTimeInput" />
+        </div>
+      </div>
+      <div class="time-actions">
+        <button class="btn-ghost" id="resetCancel" type="button">Cancel</button>
+        <button class="btn-accent" id="resetSave" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
 <script>
 (function(){
   "use strict";
-  var LS = { tasks:"dc.tasks", state:"dc.state", streak:"dc.streak", theme:"dc.theme", saved:"dc.saved", current:"dc.current" };
+  var LS = { tasks:"dc.tasks", state:"dc.state", streak:"dc.streak", theme:"dc.theme", saved:"dc.saved", current:"dc.current", reset:"dc.reset" };
   var DEFAULT_TASKS = [
     "Drink a glass of water",
     "Make the bed",
@@ -464,14 +505,31 @@
   var streak = read(LS.streak, null);
   if (!streak || typeof streak!=="object") streak = { current:0, best:0, lastDate:null };
 
-  // ---------- daily reset ----------
-  function dailyReset(){
-    if (state.date !== today()){
-      state.date = today();
-      state.checked = {};
-      write(LS.state, state);
+  // ---------- reset config + daily reset ----------
+  var resetConfig = read(LS.reset, null);
+  if(!resetConfig || typeof resetConfig!=="object") resetConfig = { mode:"daily", time:"00:00" };
+
+  function cloneReset(c){ return c ? (c.mode==="off" ? {mode:"off"} : {mode:"daily", time:(c.time||"00:00")}) : {mode:"daily", time:"00:00"}; }
+  function currentCycleKey(cfg){
+    if(!cfg || cfg.mode==="off") return "off";
+    var t=(cfg.time||"00:00").split(":"), rh=+t[0], rm=+t[1];
+    var now=new Date();
+    var b=new Date(now.getFullYear(), now.getMonth(), now.getDate(), rh, rm, 0, 0);
+    if(now.getTime() < b.getTime()) b.setDate(b.getDate()-1);
+    return dstr(b);
+  }
+  function applyResetIfNeeded(){
+    var key=currentCycleKey(resetConfig);
+    if(state.cycle===undefined || state.cycle===null){ state.cycle=key; write(LS.state,state); return false; }
+    if(state.cycle!==key){
+      if(key!=="off") state.checked={};
+      state.cycle=key; write(LS.state,state);
+      return true;
     }
-    // break streak if the last completed day is older than yesterday
+    return false;
+  }
+  function dailyReset(){
+    applyResetIfNeeded();
     if (streak.lastDate !== today() && streak.lastDate !== yesterday()){
       if (streak.current !== 0){ streak.current = 0; write(LS.streak, streak); }
     }
@@ -705,10 +763,10 @@
     clearTimeout(toastTimer); toastTimer=setTimeout(function(){ toastEl.classList.remove("show"); }, 2200);
   }
 
-  // ---------- new-day watcher (if left open past midnight) ----------
+  // ---------- auto-reset watcher (if left open across the reset time) ----------
   setInterval(function(){
-    if(state.date !== today()){ dailyReset(); render(); }
-  }, 60*1000);
+    if(applyResetIfNeeded()){ render(); }
+  }, 30*1000);
 
   // ---------- install prompt ----------
   var deferredPrompt=null, installBtn=$("installBtn");
@@ -791,8 +849,8 @@
     name=(name||"").trim() || ("Checklist "+(loadSaved().length+1));
     var arr=loadSaved(), copy=snapshot(), existing=null;
     for(var i=0;i<arr.length;i++){ if(arr[i].name.toLowerCase()===name.toLowerCase()){ existing=arr[i]; break; } }
-    if(existing){ existing.items=copy; delete existing.tasks; existing.updatedAt=Date.now(); showToast("Updated “"+name+"”"); }
-    else { arr.push({ id:uid(), name:name, items:copy, updatedAt:Date.now() }); showToast("Saved “"+name+"”"); }
+    if(existing){ existing.items=copy; delete existing.tasks; existing.reset=cloneReset(resetConfig); existing.updatedAt=Date.now(); showToast("Updated “"+name+"”"); }
+    else { arr.push({ id:uid(), name:name, items:copy, reset:cloneReset(resetConfig), updatedAt:Date.now() }); showToast("Saved “"+name+"”"); }
     persistSaved(arr); setCurrent(name); renderSaved();
   }
 
@@ -802,6 +860,7 @@
     tasks=nt; state.checked=nc;
     write(LS.tasks,tasks); write(LS.state,state);
     setCurrent(tpl.name);
+    setReset(tpl.reset ? tpl.reset : {mode:"daily", time:"00:00"});
     render(); closeSaved(); showToast("Loaded “"+tpl.name+"”");
   }
   function loadTemplate(id){
@@ -847,6 +906,7 @@
   document.addEventListener("keydown", function(e){
     if(e.key!=="Escape") return;
     if(timeOverlay.classList.contains("show")) hideTime();
+    else if(resetOverlay.classList.contains("show")) hideReset();
     else if(confirmOverlay.classList.contains("show")) hideConfirm();
     else if(savedOverlay.classList.contains("show")) closeSaved();
   });
@@ -859,6 +919,63 @@
   function setCurrent(name){ currentName = name || null; write(LS.current, currentName); updateCurrentLabel(); if(savedOverlay.classList.contains("show")) renderSaved(); }
   currentListBtn.addEventListener("click", openSaved);
   updateCurrentLabel();
+
+  // ---------- auto-reset settings ----------
+  var resetChip=$("resetChip"), resetLabelEl=$("resetLabel");
+  var resetOverlay=$("resetOverlay"), resetModePills=$("resetModePills"), resetPresetPills=$("resetPresetPills"),
+      resetTimeInput=$("resetTimeInput"), resetWhenWrap=$("resetWhenWrap"),
+      resetSaveBtn=$("resetSave"), resetCancelBtn=$("resetCancel");
+  var resetSel=null;
+
+  function resetLabelText(cfg){
+    if(!cfg || cfg.mode==="off") return "No auto-reset";
+    if(!cfg.time || cfg.time==="00:00") return "Resets daily";
+    return "Resets daily · "+to12(cfg.time);
+  }
+  function updateResetLabel(){ resetLabelEl.textContent = resetLabelText(resetConfig); }
+  function setReset(cfg){
+    resetConfig = cloneReset(cfg); write(LS.reset, resetConfig);
+    state.cycle = currentCycleKey(resetConfig); write(LS.state, state);
+    updateResetLabel();
+  }
+  function renderResetDialog(){
+    var m = (resetSel && resetSel.mode==="off") ? "off" : "daily";
+    var mb=resetModePills.querySelectorAll("button");
+    for(var i=0;i<mb.length;i++) mb[i].classList.toggle("on", mb[i].getAttribute("data-mode")===m);
+    resetWhenWrap.style.display = (m==="off") ? "none" : "";
+    var tm = (resetSel && resetSel.time) || "";
+    var pb=resetPresetPills.querySelectorAll("button");
+    for(var j=0;j<pb.length;j++) pb[j].classList.toggle("on", pb[j].getAttribute("data-time")===tm);
+  }
+  function openResetDialog(){
+    resetSel=cloneReset(resetConfig);
+    resetTimeInput.value=(resetSel.time||"00:00");
+    renderResetDialog();
+    resetOverlay.classList.add("show"); resetOverlay.setAttribute("aria-hidden","false");
+  }
+  function hideReset(){ resetOverlay.classList.remove("show"); resetOverlay.setAttribute("aria-hidden","true"); }
+
+  resetModePills.addEventListener("click", function(e){
+    var b=e.target.closest("button[data-mode]"); if(!b) return;
+    if(b.getAttribute("data-mode")==="off") resetSel={mode:"off"};
+    else resetSel={mode:"daily", time:(resetSel&&resetSel.time)||resetTimeInput.value||"00:00"};
+    renderResetDialog();
+  });
+  resetPresetPills.addEventListener("click", function(e){
+    var b=e.target.closest("button[data-time]"); if(!b) return;
+    resetSel={mode:"daily", time:b.getAttribute("data-time")};
+    resetTimeInput.value=resetSel.time;
+    renderResetDialog();
+  });
+  resetTimeInput.addEventListener("input", function(){
+    if(resetTimeInput.value) resetSel={mode:"daily", time:resetTimeInput.value};
+    renderResetDialog();
+  });
+  resetSaveBtn.addEventListener("click", function(){ setReset(resetSel); hideReset(); showToast("Auto-reset updated"); });
+  resetCancelBtn.addEventListener("click", hideReset);
+  resetOverlay.addEventListener("click", function(e){ if(e.target===resetOverlay) hideReset(); });
+  resetChip.addEventListener("click", openResetDialog);
+  updateResetLabel();
 
   // ---------- boot ----------
   dailyReset();

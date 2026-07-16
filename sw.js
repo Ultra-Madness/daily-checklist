@@ -1,5 +1,5 @@
 /* Daily Checklist — service worker (offline-first app shell) */
-const CACHE = 'daily-checklist-v8';
+const CACHE = 'daily-checklist-v9';
 const ASSETS = [
   './',
   './index.html',
