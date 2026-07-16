@@ -243,6 +243,21 @@
   .saved-item .act.load{color:var(--accent)}
   .saved-item .act.del:hover{color:var(--danger)}
   .saved-item .act svg{width:16px;height:16px}
+  .rename-input{width:100%;font-family:inherit;font-size:15px;font-weight:600;color:var(--txt);
+    background:rgba(0,0,0,.22);border:1px solid var(--accent);border-radius:9px;padding:6px 9px;outline:none}
+  /* in-app confirm dialog */
+  .confirm-overlay{align-items:center;z-index:70;background:rgba(6,6,12,.62)}
+  .confirm-box{width:100%;max-width:380px;border-radius:20px;padding:20px;
+    background:var(--glass);border:1px solid var(--brd);
+    -webkit-backdrop-filter:blur(var(--blur)) saturate(150%);backdrop-filter:blur(var(--blur)) saturate(150%);
+    box-shadow:var(--shadow),inset 0 1px 0 var(--hi);animation:sheetUp .22s cubic-bezier(.2,.7,.2,1)}
+  .confirm-msg{font-size:15.5px;line-height:1.45;margin-bottom:18px}
+  .confirm-actions{display:flex;gap:10px;justify-content:flex-end}
+  .confirm-actions button{border:none;border-radius:12px;padding:10px 17px;font-family:inherit;font-weight:700;
+    font-size:14px;cursor:pointer}
+  .btn-ghost{background:var(--glass-2);border:1px solid var(--brd);color:var(--txt)}
+  .btn-accent{color:var(--accent-ink);background:linear-gradient(150deg,#f7ff7a,var(--accent));box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
+  .btn-accent.danger{color:#fff;background:linear-gradient(150deg,#ff7d92,var(--danger));box-shadow:none}
   @media (prefers-reduced-motion: reduce){*{transition:none !important}}
 </style>
 </head>
@@ -319,6 +334,16 @@
         <button type="submit">Save current</button>
       </form>
       <div id="savedList"></div>
+    </div>
+  </div>
+
+  <div class="overlay confirm-overlay" id="confirmOverlay" aria-hidden="true">
+    <div class="confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="confirmMsg">
+      <div class="confirm-msg" id="confirmMsg"></div>
+      <div class="confirm-actions">
+        <button class="btn-ghost" id="confirmCancel" type="button">Cancel</button>
+        <button class="btn-accent" id="confirmOk" type="button">OK</button>
+      </div>
     </div>
   </div>
 
@@ -545,10 +570,25 @@
   // ---------- saved checklists (reusable templates) ----------
   var savedBtn=$("savedBtn"), savedOverlay=$("savedOverlay"), savedList=$("savedList"),
       saveForm=$("saveForm"), saveNameInput=$("saveNameInput"), savedClose=$("savedClose");
+  var confirmOverlay=$("confirmOverlay"), confirmMsg=$("confirmMsg"),
+      confirmOk=$("confirmOk"), confirmCancel=$("confirmCancel"), confirmCb=null;
+
+  // in-app confirm dialog (replaces browser popups)
+  function askConfirm(msg, okLabel, danger, cb){
+    confirmMsg.textContent=msg; confirmOk.textContent=okLabel||"OK"; confirmCb=cb;
+    confirmOk.classList.toggle("danger", !!danger);
+    confirmOverlay.classList.add("show"); confirmOverlay.setAttribute("aria-hidden","false");
+  }
+  function hideConfirm(){ confirmOverlay.classList.remove("show"); confirmOverlay.setAttribute("aria-hidden","true"); confirmCb=null; }
+  confirmOk.addEventListener("click", function(){ var cb=confirmCb; hideConfirm(); if(cb) cb(); });
+  confirmCancel.addEventListener("click", hideConfirm);
+  confirmOverlay.addEventListener("click", function(e){ if(e.target===confirmOverlay) hideConfirm(); });
 
   function loadSaved(){ var s=read(LS.saved,null); return Array.isArray(s)?s:[]; }
   function persistSaved(a){ write(LS.saved,a); }
-  function fmtCount(n){ return n + (n===1?" task":" tasks"); }
+  function itemsOf(tpl){ return tpl.items || (tpl.tasks||[]).map(function(t){ return {text:t.text, done:false}; }); }
+  function metaText(tpl){ var it=itemsOf(tpl), n=it.length, d=0; it.forEach(function(x){ if(x.done) d++; }); return n+(n===1?" task":" tasks")+(d?" · "+d+" done":""); }
+  function snapshot(){ return tasks.map(function(t){ return { text:t.text, done: !!state.checked[t.id] }; }); }
 
   function openSaved(){ renderSaved(); savedOverlay.classList.add("show"); savedOverlay.setAttribute("aria-hidden","false"); }
   function closeSaved(){ savedOverlay.classList.remove("show"); savedOverlay.setAttribute("aria-hidden","true"); }
@@ -566,7 +606,7 @@
 
       var info=document.createElement("div"); info.className="info"; info.title="Load this checklist";
       var nm=document.createElement("div"); nm.className="nm"; nm.textContent=tpl.name;
-      var meta=document.createElement("div"); meta.className="meta"; meta.textContent=fmtCount((tpl.tasks||[]).length);
+      var meta=document.createElement("div"); meta.className="meta"; meta.textContent=metaText(tpl);
       info.appendChild(nm); info.appendChild(meta);
       info.addEventListener("click", function(){ loadTemplate(tpl.id); });
 
@@ -593,44 +633,58 @@
   function saveCurrent(name){
     if(!tasks.length){ showToast("Add some tasks first"); return; }
     name=(name||"").trim() || ("Checklist "+(loadSaved().length+1));
-    var arr=loadSaved();
-    var copy=tasks.map(function(t){ return { text:t.text }; });
-    var existing=null;
+    var arr=loadSaved(), copy=snapshot(), existing=null;
     for(var i=0;i<arr.length;i++){ if(arr[i].name.toLowerCase()===name.toLowerCase()){ existing=arr[i]; break; } }
-    if(existing){ existing.tasks=copy; existing.updatedAt=Date.now(); showToast("Updated “"+name+"”"); }
-    else { arr.push({ id:uid(), name:name, tasks:copy, updatedAt:Date.now() }); showToast("Saved “"+name+"”"); }
+    if(existing){ existing.items=copy; delete existing.tasks; existing.updatedAt=Date.now(); showToast("Updated “"+name+"”"); }
+    else { arr.push({ id:uid(), name:name, items:copy, updatedAt:Date.now() }); showToast("Saved “"+name+"”"); }
     persistSaved(arr); renderSaved();
   }
 
-  function loadTemplate(id){
-    var tpl=loadSaved().filter(function(x){ return x.id===id; })[0];
-    if(!tpl) return;
-    if(tasks.length && !window.confirm("Replace your current list with “"+tpl.name+"”? Today's checkmarks will reset.")) return;
-    tasks=(tpl.tasks||[]).map(function(t){ return { id:uid(), text:t.text }; });
-    state.checked={};
+  function applyTemplate(tpl){
+    var it=itemsOf(tpl), nc={};
+    var nt=it.map(function(x){ var nid=uid(); if(x.done) nc[nid]=true; return { id:nid, text:x.text }; });
+    tasks=nt; state.checked=nc;
     write(LS.tasks,tasks); write(LS.state,state);
     render(); closeSaved(); showToast("Loaded “"+tpl.name+"”");
   }
+  function loadTemplate(id){
+    var tpl=loadSaved().filter(function(x){ return x.id===id; })[0];
+    if(!tpl) return;
+    if(tasks.length){ askConfirm("Replace your current list with “"+tpl.name+"”?","Replace",false,function(){ applyTemplate(tpl); }); }
+    else { applyTemplate(tpl); }
+  }
 
   function renameTemplate(id){
-    var arr=loadSaved(); var tpl=arr.filter(function(x){ return x.id===id; })[0];
-    if(!tpl) return;
-    var nn=window.prompt("Rename checklist", tpl.name);
-    if(nn===null) return;
-    nn=nn.trim(); if(!nn) return;
-    tpl.name=nn; persistSaved(arr); renderSaved();
+    var row=savedList.querySelector('.saved-item[data-id="'+id+'"]');
+    var arr=loadSaved(), tpl=arr.filter(function(x){ return x.id===id; })[0];
+    if(!row || !tpl) return;
+    var nmEl=row.querySelector(".nm");
+    var input=document.createElement("input"); input.className="rename-input"; input.value=tpl.name; input.maxLength=60;
+    input.setAttribute("aria-label","Checklist name");
+    nmEl.replaceWith(input); input.focus(); input.select();
+    var committed=false;
+    function commit(){ if(committed) return; committed=true; var v=input.value.trim(); if(v){ tpl.name=v; persistSaved(arr); } renderSaved(); }
+    input.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); commit(); } else if(e.key==="Escape"){ committed=true; renderSaved(); } });
+    input.addEventListener("blur", commit);
+    input.addEventListener("click", function(e){ e.stopPropagation(); });
   }
 
   function deleteTemplate(id){
-    var arr=loadSaved(); var tpl=arr.filter(function(x){ return x.id===id; })[0];
-    if(tpl && !window.confirm("Delete “"+tpl.name+"”?")) return;
-    persistSaved(arr.filter(function(x){ return x.id!==id; })); renderSaved();
+    var tpl=loadSaved().filter(function(x){ return x.id===id; })[0];
+    if(!tpl) return;
+    askConfirm("Delete “"+tpl.name+"”?","Delete",true,function(){
+      persistSaved(loadSaved().filter(function(x){ return x.id!==id; })); renderSaved();
+    });
   }
 
   savedBtn.addEventListener("click", openSaved);
   savedClose.addEventListener("click", closeSaved);
   savedOverlay.addEventListener("click", function(e){ if(e.target===savedOverlay) closeSaved(); });
-  document.addEventListener("keydown", function(e){ if(e.key==="Escape" && savedOverlay.classList.contains("show")) closeSaved(); });
+  document.addEventListener("keydown", function(e){
+    if(e.key!=="Escape") return;
+    if(confirmOverlay.classList.contains("show")) hideConfirm();
+    else if(savedOverlay.classList.contains("show")) closeSaved();
+  });
   saveForm.addEventListener("submit", function(e){ e.preventDefault(); saveCurrent(saveNameInput.value); saveNameInput.value=""; });
 
   // ---------- boot ----------
