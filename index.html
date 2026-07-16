@@ -317,6 +317,9 @@
   .current-list .cl-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .current-list .cl-chev{width:15px;height:15px;color:var(--muted);flex:0 0 auto}
   .saved-item.current{border-color:rgba(236,255,61,.55);background:rgba(236,255,61,.09)}
+  .ver{display:inline-block;font-size:10.5px;font-weight:700;color:var(--muted);vertical-align:middle;
+    background:var(--glass-2);border:1px solid var(--brd-soft);border-radius:6px;padding:2px 6px;
+    margin-left:8px;letter-spacing:.02em;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
   @media (prefers-reduced-motion: reduce){*{transition:none !important}}
 </style>
 </head>
@@ -327,7 +330,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
       </div>
       <div class="titles">
-        <h1>Daily Checklist</h1>
+        <h1>Daily Checklist<span class="ver">v1.9</span></h1>
         <div class="date" id="dateLabel"></div>
       </div>
       <div class="spacer"></div>
